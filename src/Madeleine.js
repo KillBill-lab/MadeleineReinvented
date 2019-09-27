@@ -256,6 +256,81 @@
       this.draw();
     };
 
+//Add to Scene
+Madeleine.prototype.showInScene = function(objectName,show){
+      if(this.__scene.getObjectByName(objectName) == null)
+         return;
+
+      this.__scene.getObjectByName(objectName).visible = show;
+    };
+Madeleine.prototype.addToScene = function(data,objectName,position) {
+      // Wait until data is fully loaded
+      var queued = (function(scope) {
+        return function() {
+          // When data ready, parse and render it. 
+          scope.run(scope.relPath + "lib/MadeleineLoader.js", {
+            arrbuf: scope.__arrayBuffer,
+            rawtext: scope.__rawText
+          }, function(result) {
+            var hasColors = result.hasColors;
+            var vertices = result.vertices;
+            var normals = result.normals;
+            var colors = result.colors;
+            var alpha = result.alpha;
+
+            // Create new geometry
+            scope.__geometry = new THREE.Geometry();
+
+            // Parsing done. Add vertices and normals to geometry
+            scope.__geometry = new THREE.BufferGeometry();
+            scope.__geometry.addAttribute('position', new THREE.BufferAttribute(vertices, 3));
+            scope.__geometry.addAttribute('normal', new THREE.BufferAttribute(normals, 3));
+
+            // Set color information
+            if (hasColors) {
+              scope.__geometry.addAttribute('color', new THREE.BufferAttribute(colors, 3));
+              scope.__geometry.hasColors = true;
+              scope.__geometry.alpha = alpha;
+            }
+
+            // Start rendering
+            if(position == null)
+            {
+	     position = 0;
+	    }
+            scope.renderObject(objectName,position);
+
+            // Compute time consumed in parsing and rendering
+            scope.__timer.end = (new Date()).getTime();
+            var consumed = (scope.__timer.end - scope.__timer.start) / 1000;
+            console.log("MADELEINE[LOG] Time spent: " + consumed + " sec.");
+
+            // Render object
+            scope.render();
+            // Log rendering status
+            scope.logStatus();
+            // Start rotating animation
+            scope.startAnimation();
+            // Enable mouse zoom action
+            scope.enableZoomAsMouseScroll();
+            // Enable mouse motion action
+            scope.enableUserInteraction();
+          });
+        };
+      })(this);
+
+      // Check input type and get STL Binary data 
+      switch (this.type) {
+        case "upload":
+          this.getDataFromBlob(data, queued);break;
+        case "file":
+          this.getDataFromUrl(data, queued);break;
+        default:
+          break;
+      }
+    };
+
+
     // Rendering start
     Madeleine.prototype.draw = function() {
       // Wait until data is fully loaded
@@ -385,9 +460,13 @@
     };
 
     // Render object
-    Madeleine.prototype.renderObject = function() {
+    Madeleine.prototype.renderObject = function(objectName,position) {
       // Create renderer
       if (!this.__object) this.createRenderer();
+	if(objectName == null)
+	{
+	"unknown";
+	}
 
       // Get material
       var material = null;
@@ -428,6 +507,7 @@
       var height = maxY - minY;
       var deltaY = (height > 125 ? parseFloat(0.99 * (height - Math.max(maxY, Math.abs(minY)))) : 15);
       this.__object.position.setY(-deltaY);
+      this.__object.position.setX(position);		
 
       // If object is too large to fit in, make camera look further
       // 500 (default camera distance) : 466 (view height)
@@ -438,6 +518,7 @@
       this.__camera.updateProjectionMatrix();
 
       // Parsing finished
+      this.__object.name = objectName;
       this.__scene.add(this.__object);
       this.__object.rotation.x = -1.2;
       this.__object.rotation.z = 1.2;
